@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>亚太经济气泡地图 2025</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+:root{--bg:#04060c;--border:#111827;--gold:#f0c040;--teal:#22d3b8;--rose:#f4617a;--text:#b8c8e0;--muted:#3a4a62;--dim:#1a2438}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;padding:9px 20px;border-bottom:1px solid var(--border);flex-shrink:0;gap:12px}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#fff;letter-spacing:2px;white-space:nowrap}
+.logo em{color:var(--gold);font-style:normal}
+.tagline{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.metrics{display:flex;gap:5px}
+.metric-btn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;padding:5px 13px;border-radius:2px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all .2s;white-space:nowrap}
+.metric-btn:hover{color:var(--text);border-color:var(--dim)}
+.metric-btn.active-gdp{background:var(--gold);color:#000;border-color:var(--gold)}
+.metric-btn.active-pop{background:var(--teal);color:#000;border-color:var(--teal)}
+.metric-btn.active-gdppc{background:var(--rose);color:#fff;border-color:var(--rose)}
+.src{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--muted);white-space:nowrap}
+.body{display:flex;flex:1;min-height:0}
+.map-wrap{flex:1;position:relative;overflow:hidden}
+#mapSvg{width:100%;height:100%;display:block}
+.bubble{cursor:pointer}
+.bubble circle.fill{transition:r .55s cubic-bezier(.34,1.56,.64,1)}
+.bubble circle.ring{fill:none;transition:r .55s cubic-bezier(.34,1.56,.64,1);stroke-width:1;opacity:.28}
+.bubble text{pointer-events:none;dominant-baseline:middle;text-anchor:middle}
+.bubble:hover circle.fill{filter:brightness(1.35)}
+.bubble.selected circle.fill{filter:brightness(1.55)}
+.bubble.selected circle.ring{opacity:.85;stroke-width:2}
+.tip{position:absolute;background:rgba(4,6,12,.97);border:1px solid var(--gold);border-radius:4px;padding:11px 15px;pointer-events:none;opacity:0;transition:opacity .15s;min-width:208px;z-index:50;backdrop-filter:blur(6px)}
+.tip.show{opacity:1}
+.tip-name{font-size:13px;font-weight:700;color:#fff;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+.tip-flag{font-size:20px;line-height:1}
+.tip-rows{display:flex;flex-direction:column;gap:4px}
+.tip-row{display:flex;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10px;gap:18px}
+.tip-label{color:var(--muted)}
+.tip-val{font-weight:500}
+.tip-val.gdp{color:var(--gold)}.tip-val.pop{color:var(--teal)}.tip-val.gdppc{color:var(--rose)}
+.tip-rank{font-family:'IBM Plex Mono',monospace;font-size:8.5px;color:var(--muted);margin-top:7px;border-top:1px solid var(--border);padding-top:6px;display:flex;gap:10px;flex-wrap:wrap}
+.tip-rank span{color:var(--text)}
+.panel{width:265px;border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.panel-head{padding:9px 14px;border-bottom:1px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:8.5px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase}
+.rank-scroll{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--dim) transparent}
+.rank-scroll::-webkit-scrollbar{width:3px}
+.rank-scroll::-webkit-scrollbar-thumb{background:var(--dim)}
+.ri{display:flex;align-items:center;padding:5px 14px;border-bottom:1px solid rgba(17,24,39,.6);cursor:pointer;gap:7px;transition:background .12s}
+.ri:hover{background:rgba(255,255,255,.025)}
+.ri.sel{background:rgba(240,192,64,.07);border-left:2px solid var(--gold)}
+.ri.sel.pop{background:rgba(34,211,184,.07);border-left-color:var(--teal)}
+.ri.sel.gdppc{background:rgba(244,97,122,.07);border-left-color:var(--rose)}
+.ri-num{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);width:18px;text-align:right;flex-shrink:0}
+.ri-flag{font-size:14px;flex-shrink:0}
+.ri-info{flex:1;min-width:0}
+.ri-name{font-size:10px;color:var(--text)}
+.ri-sub{font-family:'IBM Plex Mono',monospace;font-size:7.5px;color:var(--muted);margin-top:1px}
+.ri-bar{width:44px;flex-shrink:0}
+.ri-track{height:3px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden}
+.ri-fill{height:100%;border-radius:2px;background:var(--gold);transition:width .5s ease}
+.ri-fill.pop{background:var(--teal)}.ri-fill.gdppc{background:var(--rose)}
+.ri-val{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--gold);min-width:55px;text-align:right;flex-shrink:0}
+.ri-val.pop{color:var(--teal)}.ri-val.gdppc{color:var(--rose)}
+.legend{position:absolute;bottom:10px;left:12px;background:rgba(8,12,22,.93);border:1px solid var(--border);border-radius:4px;padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--muted)}
+.legend-title{color:var(--text);margin-bottom:6px;font-size:8px;letter-spacing:1px;text-transform:uppercase}
+.legend-bubbles{display:flex;align-items:flex-end;gap:10px;margin-bottom:4px}
+.lb{display:flex;flex-direction:column;align-items:center;gap:3px}
+.lb-label{font-size:7.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">亚太经济 <em>CARTOGRAM</em> <span style="color:var(--muted);font-size:10px">2025</span></div>
+    <div class="tagline">气泡面积 ∝ 数值大小 · 位置锚定地理中心 · 34国/地区</div>
+  </div>
+  <div class="metrics">
+    <button class="metric-btn active-gdp" id="btn-gdp" onclick="setMetric('gdp')">GDP 总量</button>
+    <button class="metric-btn" id="btn-pop" onclick="setMetric('pop')">人口规模</button>
+    <button class="metric-btn" id="btn-gdppc" onclick="setMetric('gdppc')">人均 GDP</button>
+  </div>
+  <div class="src">IMF WEO Oct 2025 · 点击气泡查看详情</div>
+</header>
+
+<div class="body">
+  <div class="map-wrap" id="mapWrap">
+    <svg id="mapSvg" viewBox="0 0 1000 670" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1000" height="670" fill="#030509"/>
+      <g stroke="#080d18" stroke-width="0.5">
+        <line x1="0" y1="85"  x2="1000" y2="85"/> <line x1="0" y1="170" x2="1000" y2="170"/>
+        <line x1="0" y1="255" x2="1000" y2="255"/> <line x1="0" y1="340" x2="1000" y2="340"/>
+        <line x1="0" y1="425" x2="1000" y2="425"/> <line x1="0" y1="510" x2="1000" y2="510"/>
+        <line x1="0" y1="595" x2="1000" y2="595"/>
+        <line x1="100" y1="0" x2="100" y2="670"/> <line x1="200" y1="0" x2="200" y2="670"/>
+        <line x1="300" y1="0" x2="300" y2="670"/> <line x1="400" y1="0" x2="400" y2="670"/>
+        <line x1="500" y1="0" x2="500" y2="670"/> <line x1="600" y1="0" x2="600" y2="670"/>
+        <line x1="700" y1="0" x2="700" y2="670"/> <line x1="800" y1="0" x2="800" y2="670"/>
+        <line x1="900" y1="0" x2="900" y2="670"/>
+      </g>
+      <!-- Region watermarks -->
+      <text x="148" y="58"  fill="#0b1422" font-size="14" font-family="'IBM Plex Mono',monospace" font-weight="700" letter-spacing="5">RUSSIA</text>
+      <text x="258" y="138" fill="#0b1422" font-size="12" font-family="'IBM Plex Mono',monospace" font-weight="700" letter-spacing="3">CENTRAL ASIA</text>
+      <text x="62"  y="178" fill="#0b1422" font-size="10" font-family="'IBM Plex Mono',monospace" font-weight="700" letter-spacing="2">IRAN · M.EAST</text>
+      <text x="130" y="258" fill="#0b1422" font-size="12" font-family="'IBM Plex Mono',monospace" font-weight="700" letter-spacing="3">SOUTH ASIA</text>
+      <text x="550" y="68"  fill="#0b1422" font-size="14" font-family="'IBM Plex Mono',monospace" font-weight="700" letter-spacing="5">EAST ASIA</text>
+      <text x="510" y="345" fill="#0b1422" font-size="12" font-family="'IBM Plex Mono',monospace" font-weight="700" letter-spacing="3">SE ASIA</text>
+      <text x="800" y="530" fill="#0b1422" font-size="13" font-family="'IBM Plex Mono',monospace" font-weight="700" letter-spacing="4">OCEANIA</text>
+      <g id="bubbleLayer"></g>
+    </svg>
+    <div class="tip" id="tip">
+      <div class="tip-name"><span class="tip-flag" id="tFlag"></span><span id="tName"></span></div>
+      <div class="tip-rows">
+        <div class="tip-row"><span class="tip-label">GDP 总量</span><span class="tip-val gdp" id="tGdp"></span></div>
+        <div class="tip-row"><span class="tip-label">人口</span><span class="tip-val pop" id="tPop"></span></div>
+        <div class="tip-row"><span class="tip-label">人均 GDP</span><span class="tip-val gdppc" id="tGdppc"></span></div>
+      </div>
+      <div class="tip-rank" id="tRank"></div>
+    </div>
+    <div class="legend" id="legend">
+      <div class="legend-title" id="lgTitle">GDP 规模</div>
+      <div class="legend-bubbles" id="lgBubbles"></div>
+      <div style="font-size:7.5px;color:var(--muted)">气泡面积 ∝ 数值</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head" id="panelHead">— GDP 排名</div>
+    <div class="rank-scroll" id="rankScroll"></div>
+  </div>
+</div>
+
+<script>
+// IMF WEO October 2025 data
+// viewBox 0 0 1000 670
+const countries = [
+  // Russia
+  { code:'ru', name:'俄罗斯',      flag:'🇷🇺', region:'俄罗斯',  x:168,  y:78,  gdp:2541, pop:146,  gdppc:17446 },
+  // Central Asia
+  { code:'kz', name:'哈萨克斯坦', flag:'🇰🇿', region:'中亚',   x:300,  y:152, gdp:307,  pop:20,   gdppc:14770 },
+  { code:'uz', name:'乌兹别克斯坦',flag:'🇺🇿', region:'中亚',   x:270,  y:188, gdp:130,  pop:37,   gdppc:3510  },
+  { code:'tm', name:'土库曼斯坦', flag:'🇹🇲', region:'中亚',   x:225,  y:188, gdp:67,   pop:6.3,  gdppc:13340 },
+  { code:'kg', name:'吉尔吉斯斯坦',flag:'🇰🇬', region:'中亚',   x:330,  y:162, gdp:16,   pop:7,    gdppc:2750  },
+  { code:'tj', name:'塔吉克斯坦', flag:'🇹🇯', region:'中亚',   x:308,  y:188, gdp:18,   pop:11,   gdppc:1430  },
+  // Iran
+  { code:'ir', name:'伊朗',        flag:'🇮🇷', region:'中东',   x:108,  y:178, gdp:370,  pop:90,   gdppc:4100  },
+  // South Asia
+  { code:'in', name:'印度',        flag:'🇮🇳', region:'南亚',   x:258,  y:318, gdp:4125, pop:1463, gdppc:2818  },
+  { code:'pk', name:'巴基斯坦',    flag:'🇵🇰', region:'南亚',   x:182,  y:242, gdp:373,  pop:250,  gdppc:1492  },
+  { code:'bd', name:'孟加拉国',    flag:'🇧🇩', region:'南亚',   x:362,  y:285, gdp:475,  pop:175,  gdppc:2716  },
+  { code:'lk', name:'斯里兰卡',    flag:'🇱🇰', region:'南亚',   x:275,  y:398, gdp:99,   pop:22,   gdppc:4500  },
+  { code:'np', name:'尼泊尔',      flag:'🇳🇵', region:'南亚',   x:315,  y:272, gdp:46,   pop:30,   gdppc:1533  },
+  { code:'af', name:'阿富汗',      flag:'🇦🇫', region:'南亚',   x:173,  y:205, gdp:18,   pop:44,   gdppc:409   },
+  { code:'mv', name:'马尔代夫',    flag:'🇲🇻', region:'南亚',   x:233,  y:432, gdp:7,    pop:0.5,  gdppc:14000 },
+  { code:'bt', name:'不丹',        flag:'🇧🇹', region:'南亚',   x:352,  y:266, gdp:3.4,  pop:0.8,  gdppc:4250  },
+  // East Asia
+  { code:'cn', name:'中国',        flag:'🇨🇳', region:'东亚',   x:535,  y:228, gdp:19399,pop:1409, gdppc:13968 },
+  { code:'mn', name:'蒙古',        flag:'🇲🇳', region:'东亚',   x:508,  y:142, gdp:25,   pop:3.5,  gdppc:6500  },
+  { code:'jp', name:'日本',        flag:'🇯🇵', region:'东亚',   x:730,  y:202, gdp:4280, pop:123,  gdppc:34713 },
+  { code:'kr', name:'韩国',        flag:'🇰🇷', region:'东亚',   x:685,  y:228, gdp:1760, pop:52,   gdppc:34165 },
+  { code:'tw', name:'台湾',        flag:'🏳️', region:'东亚',  x:705,  y:272, gdp:803,  pop:23,   gdppc:34900 },
+  { code:'kp', name:'朝鲜',        flag:'🇰🇵', region:'东亚',   x:666,  y:202, gdp:18,   pop:26,   gdppc:700   },
+  // Southeast Asia
+  { code:'id', name:'印度尼西亚',  flag:'🇮🇩', region:'东南亚', x:665,  y:530, gdp:1490, pop:281,  gdppc:5300  },
+  { code:'th', name:'泰国',        flag:'🇹🇭', region:'东南亚', x:552,  y:405, gdp:549,  pop:72,   gdppc:7620  },
+  { code:'sg', name:'新加坡',      flag:'🇸🇬', region:'东南亚', x:585,  y:475, gdp:525,  pop:6,    gdppc:88500 },
+  { code:'ph', name:'菲律宾',      flag:'🇵🇭', region:'东南亚', x:735,  y:392, gdp:490,  pop:118,  gdppc:4150  },
+  { code:'vn', name:'越南',        flag:'🇻🇳', region:'东南亚', x:648,  y:378, gdp:485,  pop:99,   gdppc:4900  },
+  { code:'my', name:'马来西亚',    flag:'🇲🇾', region:'东南亚', x:615,  y:475, gdp:421,  pop:34,   gdppc:12380 },
+  { code:'mm', name:'缅甸',        flag:'🇲🇲', region:'东南亚', x:552,  y:348, gdp:60,   pop:55,   gdppc:1090  },
+  { code:'kh', name:'柬埔寨',      flag:'🇰🇭', region:'东南亚', x:632,  y:415, gdp:49,   pop:17,   gdppc:2880  },
+  { code:'la', name:'老挝',        flag:'🇱🇦', region:'东南亚', x:608,  y:365, gdp:15,   pop:7,    gdppc:2140  },
+  { code:'bn', name:'文莱',        flag:'🇧🇳', region:'东南亚', x:700,  y:475, gdp:16,   pop:0.5,  gdppc:32000 },
+  { code:'tl', name:'东帝汶',      flag:'🇹🇱', region:'东南亚', x:758,  y:558, gdp:2,    pop:1.4,  gdppc:1430  },
+  // Oceania
+  { code:'au', name:'澳大利亚',    flag:'🇦🇺', region:'大洋洲', x:855,  y:590, gdp:1750, pop:27,   gdppc:63500 },
+  { code:'nz', name:'新西兰',      flag:'🇳🇿', region:'大洋洲', x:962,  y:625, gdp:260,  pop:5.2,  gdppc:47000 },
+];
+
+const metrics = {
+  gdp:  { key:'gdp',   label:'GDP 总量', color:'#f0c040', panelLabel:'GDP 排名（十亿美元）',
+          fmt:v=>v>=1000?`$${(v/1000).toFixed(2)}T`:`$${v}B`,
+          lgVals:[19399,1000,100,10], lgFmt:v=>v>=1000?`$${(v/1000).toFixed(0)}T`:`$${v}B` },
+  pop:  { key:'pop',   label:'人口规模', color:'#22d3b8', panelLabel:'人口排名（百万人）',
+          fmt:v=>v<1?`${Math.round(v*1000)}万`:`${v}M`,
+          lgVals:[1463,200,30,1], lgFmt:v=>v<1?`${v*1000}万`:`${v}M` },
+  gdppc:{ key:'gdppc', label:'人均 GDP', color:'#f4617a', panelLabel:'人均GDP排名（美元）',
+          fmt:v=>`$${v.toLocaleString()}`,
+          lgVals:[88500,30000,5000,500], lgFmt:v=>`$${(v/1000).toFixed(0)}k` },
+};
+
+const MAX_R=96, MIN_R=5;
+let currentMetric='gdp', selectedCode=null;
+
+function computeRadius(val,metric){
+  const max=Math.max(...countries.map(c=>c[metric]));
+  return Math.max(MIN_R, MAX_R*Math.sqrt(val/max));
+}
+function getRank(code,metric){
+  return [...countries].sort((a,b)=>b[metric]-a[metric]).findIndex(c=>c.code===code)+1;
+}
+
+function renderBubbles(){
+  const layer=document.getElementById('bubbleLayer');
+  layer.innerHTML='';
+  const m=metrics[currentMetric];
+  [...countries].sort((a,b)=>b[currentMetric]-a[currentMetric]).forEach(c=>{
+    const r=computeRadius(c[currentMetric],currentMetric);
+    const isSel=c.code===selectedCode;
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class',`bubble${isSel?' selected':''}`);
+    g.setAttribute('data-code',c.code);
+    g.setAttribute('transform',`translate(${c.x},${c.y})`);
+
+    const ring=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    ring.setAttribute('class','ring'); ring.setAttribute('r',r+4); ring.setAttribute('stroke',m.color);
+    g.appendChild(ring);
+
+    const fill=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    fill.setAttribute('class','fill'); fill.setAttribute('r',r);
+    fill.setAttribute('fill',m.color); fill.setAttribute('fill-opacity',isSel?'0.78':'0.40');
+    g.appendChild(fill);
+
+    if(r>13){
+      const t1=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t1.setAttribute('y',r>25?'-5':'0');
+      t1.setAttribute('font-size',Math.max(7.5,Math.min(13,r*0.35)));
+      t1.setAttribute('font-family',"'Noto Sans SC',sans-serif");
+      t1.setAttribute('font-weight','700');
+      t1.setAttribute('fill',r>42?'#fff':m.color);
+      t1.setAttribute('fill-opacity','0.96');
+      t1.textContent=c.name; g.appendChild(t1);
+    }
+    if(r>28){
+      const t2=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t2.setAttribute('y','11');
+      t2.setAttribute('font-size',Math.max(7,Math.min(11,r*0.25)));
+      t2.setAttribute('font-family',"'IBM Plex Mono',monospace");
+      t2.setAttribute('fill','#fff'); t2.setAttribute('fill-opacity','0.55');
+      t2.textContent=m.fmt(c[currentMetric]); g.appendChild(t2);
+    }
+    if(r<=13){
+      const tf=document.createElementNS('http://www.w3.org/2000/svg','text');
+      tf.setAttribute('font-size',Math.min(r*1.05,11));
+      tf.setAttribute('fill-opacity','0.9');
+      tf.textContent=c.flag; g.appendChild(tf);
+    }
+
+    g.addEventListener('mouseenter',e=>showTip(c,e));
+    g.addEventListener('mousemove',moveTip);
+    g.addEventListener('mouseleave',hideTip);
+    g.addEventListener('click',()=>selectCountry(c.code));
+    layer.appendChild(g);
+  });
+}
+
+const tip=document.getElementById('tip');
+function showTip(c,e){
+  document.getElementById('tFlag').textContent=c.flag;
+  document.getElementById('tName').textContent=c.name;
+  document.getElementById('tGdp').textContent=metrics.gdp.fmt(c.gdp);
+  document.getElementById('tPop').textContent=metrics.pop.fmt(c.pop);
+  document.getElementById('tGdppc').textContent=metrics.gdppc.fmt(c.gdppc);
+  document.getElementById('tRank').innerHTML=
+    `GDP #<span>${getRank(c.code,'gdp')}</span> &nbsp;人口 #<span>${getRank(c.code,'pop')}</span> &nbsp;人均 #<span>${getRank(c.code,'gdppc')}</span>`;
+  tip.style.borderColor=metrics[currentMetric].color;
+  moveTip(e); tip.classList.add('show');
+}
+function moveTip(e){
+  const wrap=document.getElementById('mapWrap');
+  const rect=wrap.getBoundingClientRect();
+  let x=e.clientX-rect.left+16, y=e.clientY-rect.top+16;
+  if(x+220>rect.width) x-=238;
+  if(y+148>rect.height) y-=158;
+  tip.style.left=x+'px'; tip.style.top=y+'px';
+}
+function hideTip(){tip.classList.remove('show');}
+
+function selectCountry(code){
+  selectedCode=selectedCode===code?null:code;
+  renderBubbles(); renderRankList();
+}
+
+function renderRankList(){
+  const m=metrics[currentMetric];
+  document.getElementById('panelHead').textContent='— '+m.panelLabel;
+  const sorted=[...countries].sort((a,b)=>b[currentMetric]-a[currentMetric]);
+  const max=sorted[0][currentMetric];
+  const cls=currentMetric==='gdp'?'':currentMetric;
+  const selCls=selectedCode&&currentMetric!=='gdp'?currentMetric:'';
+  document.getElementById('rankScroll').innerHTML=sorted.map((c,i)=>{
+    const w=Math.round((c[currentMetric]/max)*100);
+    const isSel=c.code===selectedCode;
+    return `<div class="ri${isSel?' sel '+(selCls||''):''}" onclick="selectCountry('${c.code}')">
+      <div class="ri-num">${i+1}</div>
+      <div class="ri-flag">${c.flag}</div>
+      <div class="ri-info"><div class="ri-name">${c.name}</div><div class="ri-sub">${c.region}</div></div>
+      <div class="ri-bar"><div class="ri-track"><div class="ri-fill ${cls}" style="width:${w}%"></div></div></div>
+      <div class="ri-val ${cls}">${m.fmt(c[currentMetric])}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderLegend(){
+  const m=metrics[currentMetric];
+  document.getElementById('lgTitle').textContent=m.label+' 气泡';
+  document.getElementById('lgBubbles').innerHTML=m.lgVals.map(v=>{
+    const r=computeRadius(v,currentMetric), d=r*2;
+    return `<div class="lb"><svg width="${d}" height="${d}" viewBox="0 0 ${d} ${d}">
+      <circle cx="${r}" cy="${r}" r="${r-.5}" fill="${m.color}" fill-opacity=".40" stroke="${m.color}" stroke-width=".8" stroke-opacity=".35"/>
+    </svg><div class="lb-label">${m.lgFmt(v)}</div></div>`;
+  }).join('');
+}
+
+function setMetric(m){
+  currentMetric=m;
+  ['gdp','pop','gdppc'].forEach(k=>{
+    document.getElementById('btn-'+k).className='metric-btn'+(k===m?` active-${k}`:'');
+  });
+  renderBubbles(); renderRankList(); renderLegend();
+}
+
+renderBubbles(); renderRankList(); renderLegend();
+</script>
+</body>
+</html>
